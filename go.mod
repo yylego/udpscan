@@ -15,8 +15,8 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/yylego/mutexmap v0.0.0 // indirect
-	github.com/yylego/zaplog v0.0.0 // indirect
+	github.com/yylego/zaplog v0.0.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
+	go.uber.org/zap v1.28.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
