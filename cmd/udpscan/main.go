@@ -31,40 +31,40 @@ var (
 func main() {
 	rootCmd := &cobra.Command{
 		Use:     "udpscan",
-		Short:   "UDP 局域网主机发现工具",
+		Short:   "Detect LAN hosts via UDP broadcast",
 		Version: udpscan.Version, // 顺带提供 --version
 	}
 
 	versionCmd := &cobra.Command{
 		Use:   "version",
-		Short: "显示版本号与协议标识",
+		Short: "Show the version and the handshake sign",
 		Run:   runVersion,
 	}
 
 	serverCmd := &cobra.Command{
 		Use:     "server",
-		Short:   "启动服务端，监听并回复自己的昵称",
+		Short:   "Listen and respond with this host nickname",
 		PreRunE: validateServerFlags,
 		Run:     runServer,
 	}
-	serverCmd.Flags().StringVarP(&name, "name", "n", "", "主机昵称 (必填)")
-	serverCmd.Flags().StringVarP(&username, "username", "u", "", "供对方 ssh 登录的用户名 (留空则取当前账号)")
-	serverCmd.Flags().IntVar(&sshPort, "ssh-port", udpscan.DefaultSSHPort, "本机 sshd 监听的端口")
-	serverCmd.Flags().IntVarP(&port, "port", "p", udpscan.ScanPort, "监听端口")
+	serverCmd.Flags().StringVarP(&name, "name", "n", "", "Nickname of this host (required)")
+	serverCmd.Flags().StringVarP(&username, "username", "u", "", "Account others should ssh in as (unset picks up the account in use)")
+	serverCmd.Flags().IntVar(&sshPort, "ssh-port", udpscan.DefaultSSHPort, "Port the sshd on this host listens on")
+	serverCmd.Flags().IntVarP(&port, "port", "p", udpscan.ScanPort, "Port to listen on")
 	must.Done(serverCmd.MarkFlagRequired("name"))
 
 	clientCmd := &cobra.Command{
 		Use:     "client",
-		Short:   "扫描局域网内的主机",
+		Short:   "Scan the LAN and list the hosts that respond",
 		PreRunE: validateClientFlags,
 		Run:     runClient,
 	}
-	clientCmd.Flags().StringVarP(&broadcast, "broadcast", "b", "", "广播地址 (留空则自动枚举所有网卡)")
-	clientCmd.Flags().StringVarP(&wantedName, "name", "n", "", "只保留昵称匹配的主机 (可能匹配到多台)")
-	clientCmd.Flags().BoolVar(&asJSON, "json", false, "输出 JSON, 便于脚本处理")
-	clientCmd.Flags().IntVarP(&targetPort, "port", "p", udpscan.ScanPort, "【对方】监听的端口, 探测包发往这里")
-	clientCmd.Flags().IntVar(&sourcePort, "source-port", 0, "【本机】发包与收应答用的端口 (0=随机, 固定后防火墙只需放行一个口)")
-	clientCmd.Flags().IntVarP(&timeout, "timeout", "t", 3, "扫描超时(秒)")
+	clientCmd.Flags().StringVarP(&broadcast, "broadcast", "b", "", "Broadcast address (unset enumerates each interface)")
+	clientCmd.Flags().StringVarP(&wantedName, "name", "n", "", "Keep hosts whose nickname matches (can match more than one)")
+	clientCmd.Flags().BoolVar(&asJSON, "json", false, "Emit JSON so scripts can consume it")
+	clientCmd.Flags().IntVarP(&targetPort, "port", "p", udpscan.ScanPort, "[REMOTE] port the other side listens on, probes go there")
+	clientCmd.Flags().IntVar(&sourcePort, "source-port", 0, "[LOCAL] port to send from and receive on (0=random, pinning it lets the firewall open just one port)")
+	clientCmd.Flags().IntVarP(&timeout, "timeout", "t", 3, "Scan timeout in seconds")
 
 	rootCmd.AddCommand(serverCmd, clientCmd, versionCmd)
 
@@ -80,13 +80,13 @@ func main() {
 // 省掉了 -p 的错误 ssh 命令，昵称留空则会让扫描方看到一台没有名字的机器。
 func validateServerFlags(cmd *cobra.Command, args []string) error {
 	if strings.TrimSpace(name) == "" {
-		return fmt.Errorf("--name 不能为空")
+		return fmt.Errorf("--name must not be blank")
 	}
 	if !udpscan.IsValidPort(port) {
-		return fmt.Errorf("--port 必须在 1-65535 之间, 当前是 %d", port)
+		return fmt.Errorf("--port must be within 1-65535, got %d", port)
 	}
 	if !udpscan.IsValidPort(sshPort) {
-		return fmt.Errorf("--ssh-port 必须在 1-65535 之间, 当前是 %d", sshPort)
+		return fmt.Errorf("--ssh-port must be within 1-65535, got %d", sshPort)
 	}
 	return nil
 }
@@ -97,14 +97,14 @@ func validateServerFlags(cmd *cobra.Command, args []string) error {
 // 那是个天天都见的正常输出，没人会想到是参数写错了，于是错怪到网络头上。
 func validateClientFlags(cmd *cobra.Command, args []string) error {
 	if !udpscan.IsValidPort(targetPort) {
-		return fmt.Errorf("--port 必须在 1-65535 之间, 当前是 %d", targetPort)
+		return fmt.Errorf("--port must be within 1-65535, got %d", targetPort)
 	}
 	// 0 在这里是有意义的：表示由内核随机挑一个端口
 	if sourcePort != 0 && !udpscan.IsValidPort(sourcePort) {
-		return fmt.Errorf("--source-port 必须是 0(随机) 或 1-65535, 当前是 %d", sourcePort)
+		return fmt.Errorf("--source-port must be within 0-65535 (zero means random), got %d", sourcePort)
 	}
 	if timeout <= 0 {
-		return fmt.Errorf("--timeout 必须大于 0 秒, 当前是 %d", timeout)
+		return fmt.Errorf("--timeout must be above zero seconds, got %d", timeout)
 	}
 	return nil
 }
@@ -115,10 +115,10 @@ func validateClientFlags(cmd *cobra.Command, args []string) error {
 // 服务端照收，只是不匹配就直接丢弃，两边都不会打印任何异常。所以这里把魔术字也打出来：
 // 两台机器各跑一次一比，立刻能判断是不是协议不兼容，比抓包快得多。
 func runVersion(cmd *cobra.Command, args []string) {
-	fmt.Printf("udpscan     %s\n", udpscan.Version)
-	fmt.Printf("协议魔术字  %s\n", udpscan.ScanSign)
-	fmt.Printf("默认端口    %d\n", udpscan.ScanPort)
-	fmt.Printf("Go 版本     %s\n", runtime.Version())
+	fmt.Printf("udpscan        %s\n", udpscan.Version)
+	fmt.Printf("handshake sign %s\n", udpscan.ScanSign)
+	fmt.Printf("default port   %d\n", udpscan.ScanPort)
+	fmt.Printf("go toolchain   %s\n", runtime.Version())
 }
 
 // resolveUsername 定出要告诉对方的登录用户名：显式配置优先，否则取当前用户。
@@ -143,25 +143,25 @@ func runServer(cmd *cobra.Command, args []string) {
 	listenAddress := &net.UDPAddr{IP: net.IPv4(0, 0, 0, 0), Port: port}
 	conn, err := net.ListenUDP("udp", listenAddress)
 	if err != nil {
-		fmt.Println("启动失败:", err)
+		fmt.Fprintln(os.Stderr, "cannot listen:", err)
 		os.Exit(1)
 	}
 	defer func() { _ = conn.Close() }()
 
 	loginUsername := resolveUsername(username)
 
-	fmt.Printf("服务端启动 [%s] 监听端口 %d\n", name, port)
+	fmt.Printf("started [%s], listening on port %d\n", name, port)
 	if loginUsername == "" {
-		fmt.Println("提示: 未定出登录用户名, 对方扫到本机后无法直接得到 ssh 命令, 建议加 --username 指定")
+		fmt.Println("note: no login account resolved, so peers cannot compose an ssh command; pass --username to set it")
 	} else {
-		fmt.Printf("对外通告的登录方式: %s@本机 (sshd 端口 %d)\n", loginUsername, sshPort)
+		fmt.Printf("announcing login as: %s@this-host (sshd port %d)\n", loginUsername, sshPort)
 	}
 
 	// 先试算一次应答包多大：超过安全载荷就会被 IP 分片，任一分片丢失整个报文即作废，
 	// 而且丢了不会有任何提示。在这里说一声，比日后排查"这台机器怎么扫不到"省事得多。
 	probe := udpscan.Response{Name: name, Time: time.Now(), Username: loginUsername, SSHPort: sshPort}
 	if data, err := json.Marshal(probe); err == nil && len(data) > udpscan.SafePayloadSize {
-		fmt.Printf("提示: 应答包约 %d 字节, 已超过 %d 的安全载荷, 可能因分片而丢失, 建议缩短昵称\n",
+		fmt.Printf("note: the response packet takes about %d bytes, above the %d-byte safe payload; it can be lost to fragmentation, so shorten the nickname\n",
 			len(data), udpscan.SafePayloadSize)
 	}
 
@@ -169,7 +169,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	for {
 		n, clientAddress, err := conn.ReadFromUDP(buf)
 		if err != nil {
-			fmt.Println("读取错误:", err)
+			fmt.Fprintln(os.Stderr, "read failed:", err)
 			continue
 		}
 
@@ -189,10 +189,10 @@ func runServer(cmd *cobra.Command, args []string) {
 
 			// 发送失败则是偶发的环境问题（对方已走、缓冲区满），记一笔继续服务即可，不该崩。
 			if _, err := conn.WriteToUDP(data, clientAddress); err != nil {
-				fmt.Fprintf(os.Stderr, "回复 %s 失败: %v\n", clientAddress.IP, err)
+				fmt.Fprintf(os.Stderr, "response to %s failed: %v\n", clientAddress.IP, err)
 				continue
 			}
-			fmt.Printf("回复 %s\n", clientAddress.IP)
+			fmt.Printf("responded to %s\n", clientAddress.IP)
 		}
 	}
 }
@@ -208,23 +208,23 @@ func resolveBroadcastAddresses() []net.IP {
 	}
 
 	var results []net.IP
-	for _, item := range interfaces {
-		if item.Flags&net.FlagUp == 0 {
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 {
 			continue // 网卡没启用
 		}
-		if item.Flags&net.FlagLoopback != 0 {
+		if iface.Flags&net.FlagLoopback != 0 {
 			continue // 回环口上没有别的主机
 		}
-		if item.Flags&net.FlagBroadcast == 0 {
+		if iface.Flags&net.FlagBroadcast == 0 {
 			continue // 不支持广播，点对点隧道就落在这里
 		}
 
-		addresses, err := item.Addrs()
+		addresses, err := iface.Addrs()
 		if err != nil {
 			continue
 		}
-		for _, entry := range addresses {
-			ipNet, ok := entry.(*net.IPNet)
+		for _, item := range addresses {
+			ipNet, ok := item.(*net.IPNet)
 			if !ok {
 				continue
 			}
@@ -241,7 +241,7 @@ func resolveScanTargets(configured string) []net.IP {
 	if configured != "" {
 		single := net.ParseIP(configured)
 		if single == nil {
-			fmt.Fprintln(os.Stderr, "无效的广播地址:", configured)
+			fmt.Fprintln(os.Stderr, "bad broadcast address:", configured)
 			os.Exit(1)
 		}
 		return []net.IP{single}
@@ -252,47 +252,47 @@ func resolveScanTargets(configured string) []net.IP {
 func runClient(cmd *cobra.Command, args []string) {
 	targets := resolveScanTargets(broadcast)
 	if len(targets) == 0 {
-		fmt.Fprintln(os.Stderr, "没有找到支持广播的网卡, 可以用 -b 手动指定广播地址")
+		fmt.Fprintln(os.Stderr, "no broadcast-capable interface found; pass -b to choose an address")
 		os.Exit(1)
 	}
 
 	// 监听本地端口用于接收应答。默认 0 让内核随机挑一个；
 	// 指定固定端口的意义在于防火墙：应答包的目的端口就是这里，
 	// 端口固定下来，放行规则才能精确到一个口，而不必放开整个临时端口范围。
-	listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(0, 0, 0, 0), Port: sourcePort})
+	socket, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(0, 0, 0, 0), Port: sourcePort})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "监听失败:", err)
+		fmt.Fprintln(os.Stderr, "cannot listen:", err)
 		// 指定了固定端口时最常见的原因是被占用（比如同时跑了两个扫描）。
 		// 这里【不自动退回随机端口】：那样防火墙规则会突然不匹配，
 		// 变成"有时扫得到有时扫不到"的诡异现象，比直接失败难查得多。
 		if sourcePort != 0 {
-			fmt.Fprintf(os.Stderr, "提示: 端口 %d 可能已被占用, 去掉 --source-port 即可改用随机端口\n", sourcePort)
+			fmt.Fprintf(os.Stderr, "note: port %d seems taken; drop --source-port to revert to a random one\n", sourcePort)
 		}
 		os.Exit(1)
 	}
-	defer func() { _ = listener.Close() }()
+	defer func() { _ = socket.Close() }()
 
 	// 逐个广播地址发探测包：某个网卡发不出去不影响其它网卡
 	var reached []string
 	for _, target := range targets {
 		broadcastAddress := &net.UDPAddr{IP: target, Port: targetPort}
-		if _, err := listener.WriteToUDP([]byte(udpscan.ScanSign), broadcastAddress); err != nil {
-			fmt.Fprintf(os.Stderr, "发送到 %s 失败: %v\n", target, err)
+		if _, err := socket.WriteToUDP([]byte(udpscan.ScanSign), broadcastAddress); err != nil {
+			fmt.Fprintf(os.Stderr, "send to %s failed: %v\n", target, err)
 			continue
 		}
 		reached = append(reached, target.String())
 	}
 	if len(reached) == 0 {
-		fmt.Fprintln(os.Stderr, "所有广播地址都发送失败")
+		fmt.Fprintln(os.Stderr, "sending failed at each broadcast address")
 		os.Exit(1)
 	}
 
 	startedAt := time.Now()
-	must.Done(listener.SetReadDeadline(startedAt.Add(time.Duration(timeout) * time.Second)))
+	must.Done(socket.SetReadDeadline(startedAt.Add(time.Duration(timeout) * time.Second)))
 
 	// JSON 模式下这些进度信息不能进 stdout，否则会把 JSON 冲脏
 	if !asJSON {
-		fmt.Printf("扫描中... (广播: %s, 端口: %d, 超时: %ds)\n", strings.Join(reached, " "), targetPort, timeout)
+		fmt.Printf("scanning... (broadcast: %s, port: %d, timeout: %ds)\n", strings.Join(reached, " "), targetPort, timeout)
 		fmt.Println("--------------------")
 	}
 
@@ -304,7 +304,7 @@ func runClient(cmd *cobra.Command, args []string) {
 	buf := make([]byte, udpscan.MaxPacketSize)
 
 	for {
-		n, hostAddress, err := listener.ReadFromUDP(buf)
+		n, hostAddress, err := socket.ReadFromUDP(buf)
 		if err != nil {
 			break // 超时或错误
 		}
@@ -314,7 +314,7 @@ func runClient(cmd *cobra.Command, args []string) {
 			// 局域网里可能有别的程序往这个端口发东西，认不出来就跳过是对的。
 			// 但装满整个缓冲区还解析失败，就不是噪声而是被截断了，这个必须说一声。
 			if n == len(buf) {
-				fmt.Fprintf(os.Stderr, "警告: 来自 %s 的应答已达 %d 字节上限, 可能被截断而丢弃\n", hostAddress.IP, n)
+				fmt.Fprintf(os.Stderr, "warning: the response from %s hit the %d-byte cap and might have been cut short\n", hostAddress.IP, n)
 			}
 			continue
 		}
@@ -334,7 +334,7 @@ func runClient(cmd *cobra.Command, args []string) {
 		host := udpscan.NewHost(ip, &resp)
 		hosts = append(hosts, host)
 		if !asJSON {
-			fmt.Printf("发现: %-15s %s\n", host.IP, host.Name)
+			printHostLine(&host)
 		}
 	}
 
@@ -351,7 +351,7 @@ func runClient(cmd *cobra.Command, args []string) {
 	if asJSON {
 		data, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "序列化失败:", err)
+			fmt.Fprintln(os.Stderr, "cannot encode the result:", err)
 			os.Exit(1)
 		}
 		fmt.Println(string(data))
@@ -365,26 +365,27 @@ func runClient(cmd *cobra.Command, args []string) {
 	}
 }
 
-// printResultText 输出给人看的扫描结果。
+// printHostLine 把一台主机打成一行：地址、昵称、可直接复制的 ssh 命令。
+//
+// 三样东西并排放在同一行，是为了让人不必在"列表"和"命令清单"之间来回对照 ——
+// 机器一多，光看 ssh 命令里的地址和账号已经认不出那是哪一台了，昵称才是人记得住的标识。
+//
+// ⚠️ 对齐用的是固定字符宽度，昵称含中文或超长时会错位；那只影响观感，不影响内容。
+func printHostLine(host *udpscan.Host) {
+	if host.SSHCommand == "" {
+		// 对方没有通告登录账号（多半是以 root 常驻却没配 --username），拼不出命令
+		fmt.Printf("found: %-15s %s\n", host.IP, host.Name)
+		return
+	}
+	fmt.Printf("found: %-15s %-16s %s\n", host.IP, host.Name, host.SSHCommand)
+}
+
+// printResultText 输出给人看的汇总行。
 func printResultText(result *udpscan.ScanResult) {
 	fmt.Println("--------------------")
 	if result.WantedName != "" {
-		fmt.Printf("匹配 %q 的主机: %d 台\n", result.WantedName, result.Count)
+		fmt.Printf("hosts matching %q: %d\n", result.WantedName, result.Count)
 	} else {
-		fmt.Printf("共发现 %d 台主机\n", result.Count)
-	}
-
-	// 把拼好的 ssh 命令单独列一遍，可以直接复制执行
-	var sshCommands []string
-	for _, item := range result.Hosts {
-		if item.SSHCommand != "" {
-			sshCommands = append(sshCommands, item.SSHCommand)
-		}
-	}
-	if len(sshCommands) > 0 {
-		fmt.Println()
-		for _, line := range sshCommands {
-			fmt.Println(line)
-		}
+		fmt.Printf("found %d host(s)\n", result.Count)
 	}
 }

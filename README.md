@@ -83,10 +83,10 @@ udpscan version
 ```
 
 ```
-udpscan     v0.0.1
-协议魔术字  UDPSCAN
-默认端口    42388
-Go 版本     go1.26.5
+udpscan        v0.0.2
+handshake sign UDPSCAN
+default port   42388
+go toolchain   go1.26.5
 ```
 
 ⭐ Whether two ends can talk depends on the **protocol magic string**, not the version number. Run this on both machines and compare: a mismatch is immediately visible, whereas in normal operation neither side reports anything at all (see "Deployment Notes" below).
@@ -96,21 +96,19 @@ Go 版本     go1.26.5
 ```bash
 # On Ubuntu (start detection service)
 $ udpscan server --name xiaozhixiang --username yangyile
-服务端启动 [xiaozhixiang] 监听端口 42388
-对外通告的登录方式: yangyile@本机 (sshd 端口 22)
+started [xiaozhixiang], listening on port 42388
+announcing login as: yangyile@this-host (sshd port 22)
 
 # On Mac (scan, covering every interface automatically)
 $ udpscan client
-扫描中... (广播: 172.16.91.255 10.42.0.255, 端口: 42388, 超时: 3s)
+scanning... (broadcast: 172.16.91.255 10.42.0.255, port: 42388, timeout: 3s)
 --------------------
-发现: 172.16.91.98    xiaozhixiang
+found: 172.16.91.98    xiaozhixiang     ssh yangyile@172.16.91.98
 --------------------
-共发现 1 台主机
-
-ssh yangyile@172.16.91.98
+found 1 host(s)
 ```
 
-That trailing ssh command is ready to paste — which is usually the very next thing anyone does after a scan.
+The ssh command sits on the same line as the address and the nickname, so it stays paste-ready even once many hosts show up.
 
 For scripts, add `--json`:
 

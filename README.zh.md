@@ -83,10 +83,10 @@ udpscan version
 ```
 
 ```
-udpscan     v0.0.1
-协议魔术字  UDPSCAN
-默认端口    42388
-Go 版本     go1.26.5
+udpscan        v0.0.2
+handshake sign UDPSCAN
+default port   42388
+go toolchain   go1.26.5
 ```
 
 ⭐ 两端能不能对上话，取决于**协议魔术字**而不是版本号。两台机器各跑一次这个命令一比对，立刻能判断是不是协议不兼容——那种情况下双方都不会报任何错（详见下面「部署须知」）。
@@ -96,21 +96,19 @@ Go 版本     go1.26.5
 ```bash
 # 在 Ubuntu 上（启动检测服务）
 $ udpscan server --name xiaozhixiang --username yangyile
-服务端启动 [xiaozhixiang] 监听端口 42388
-对外通告的登录方式: yangyile@本机 (sshd 端口 22)
+started [xiaozhixiang], listening on port 42388
+announcing login as: yangyile@this-host (sshd port 22)
 
 # 在 Mac 上（扫描，自动覆盖所有网卡）
 $ udpscan client
-扫描中... (广播: 172.16.91.255 10.42.0.255, 端口: 42388, 超时: 3s)
+scanning... (broadcast: 172.16.91.255 10.42.0.255, port: 42388, timeout: 3s)
 --------------------
-发现: 172.16.91.98    xiaozhixiang
+found: 172.16.91.98    xiaozhixiang     ssh yangyile@172.16.91.98
 --------------------
-共发现 1 台主机
-
-ssh yangyile@172.16.91.98
+found 1 host(s)
 ```
 
-末尾那行 ssh 命令可以直接复制执行——这正是扫描之后通常要做的下一件事。
+每行末尾那条 ssh 命令可以直接复制执行，跟地址、昵称并排放着，机器一多也不用来回对照。
 
 给脚本用时加 `--json`：
 
